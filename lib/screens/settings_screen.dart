@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:digilens/services/automatic_sms_guard_service.dart';
+import 'package:digilens/services/parental_control_service.dart';
+import 'package:digilens/screens/parental_pin_setup_screen.dart';
+import 'package:digilens/screens/parental_history_screen.dart';
+import 'package:digilens/components/parental_pin_modal.dart';
 import 'package:digilens/theme/app_theme.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -12,6 +16,97 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   bool _autoSms = AutomaticSmsGuardService.instance.isProtectionEnabled;
   bool _cloudAi = AutomaticSmsGuardService.instance.isCloudAiEnabled;
+  bool _parentalEnabled = ParentalControlService.instance.isEnabled;
+
+  @override
+  void initState() {
+    super.initState();
+    _refreshParentalState();
+  }
+
+  void _refreshParentalState() {
+    setState(() {
+      _parentalEnabled = ParentalControlService.instance.isEnabled;
+    });
+  }
+
+  Future<void> _handleParentalToggle(bool value) async {
+    final hasPin = await ParentalControlService.instance.hasPinSet();
+    if (!mounted) return;
+
+    if (!hasPin) {
+      // Direct user to PIN setup screen first
+      final setupSuccess = await Navigator.push<bool>(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const ParentalPinSetupScreen(isChangePin: false),
+        ),
+      );
+
+      if (setupSuccess == true && mounted) {
+        // Once PIN is setup, verify to enable
+        await ParentalControlService.instance.setEnabled(true);
+        if (!mounted) return;
+        _refreshParentalState();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Parental Control is now enabled.')),
+        );
+      }
+      return;
+    }
+
+    // Require PIN verification to toggle
+    final verified = await ParentalPinModal.show(
+      context,
+      title: value ? 'Enable Parental Controls' : 'Disable Parental Controls',
+      subtitle: 'Enter your 6-digit parental PIN to confirm this change.',
+    );
+
+    if (verified && mounted) {
+      await ParentalControlService.instance.setEnabled(value);
+      if (!mounted) return;
+      _refreshParentalState();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            value
+                ? 'Parental Control is now active.'
+                : 'Parental Control has been disabled.',
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> _handleChangePin() async {
+    final hasPin = await ParentalControlService.instance.hasPinSet();
+    if (!mounted) return;
+
+    await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ParentalPinSetupScreen(isChangePin: hasPin),
+      ),
+    );
+    _refreshParentalState();
+  }
+
+  Future<void> _openHistory() async {
+    final verified = await ParentalPinModal.show(
+      context,
+      title: 'Parental Activity Log',
+      subtitle: 'Enter your 6-digit PIN to review browsing and approval history.',
+    );
+
+    if (verified && mounted) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const ParentalHistoryScreen(),
+        ),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -138,6 +233,89 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const SizedBox(height: 24),
 
+          // Parental Control Section
+          const Text(
+            'Parental Control & Safe Browsing',
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: AppTheme.navyText,
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          Card(
+            child: Column(
+              children: [
+                SwitchListTile(
+                  secondary: const Icon(
+                    Icons.family_restroom,
+                    color: AppTheme.indigo,
+                  ),
+                  title: const Text(
+                    'Parental Web Guard',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                  ),
+                  subtitle: Text(
+                    _parentalEnabled
+                        ? 'Active: PIN approval required to open websites'
+                        : 'Disabled: In-app links open directly',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: _parentalEnabled ? Colors.green[700] : AppTheme.mutedText,
+                      fontWeight: _parentalEnabled ? FontWeight.w600 : FontWeight.normal,
+                    ),
+                  ),
+                  value: _parentalEnabled,
+                  onChanged: (val) => _handleParentalToggle(val),
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(
+                    Icons.pin_outlined,
+                    color: AppTheme.indigo,
+                  ),
+                  title: const Text(
+                    'Parental 6-Digit PIN',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                  ),
+                  subtitle: const Text(
+                    'Create or update secure access PIN',
+                    style: TextStyle(fontSize: 12),
+                  ),
+                  trailing: const Icon(
+                    Icons.arrow_forward_ios,
+                    size: 14,
+                    color: AppTheme.mutedText,
+                  ),
+                  onTap: _handleChangePin,
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(
+                    Icons.manage_history_outlined,
+                    color: AppTheme.indigo,
+                  ),
+                  title: const Text(
+                    'Activity History & Audit Log',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                  ),
+                  subtitle: const Text(
+                    'Review website access attempts and PIN logs',
+                    style: TextStyle(fontSize: 12),
+                  ),
+                  trailing: const Icon(
+                    Icons.arrow_forward_ios,
+                    size: 14,
+                    color: AppTheme.mutedText,
+                  ),
+                  onTap: _openHistory,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+
           // Prototype Limitations
           const Text(
             'Prototype Disclaimers & Limitations',
@@ -154,6 +332,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
             icon: Icons.shield_outlined,
             title: 'Simulated Detection Logic',
             description: 'This preview uses client-side heuristic rules to showcase UX and detection workflows. Ready to connect to a FastAPI machine learning backend.',
+          ),
+          const SizedBox(height: 10),
+
+          _buildInfoTile(
+            context,
+            icon: Icons.phonelink_lock,
+            title: 'Parental Control In-App Scope',
+            description: 'Parental Control intercepts links and web navigation initiated within DigiLens. System-wide website blocking in Chrome or 3rd-party apps requires Android VPN/Accessibility service permissions and is not implemented in this prototype.',
           ),
           const SizedBox(height: 10),
 

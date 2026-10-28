@@ -5,12 +5,14 @@ import 'package:digilens/screens/settings_screen.dart';
 import 'package:digilens/screens/scan_result_screen.dart';
 import 'package:digilens/services/pre_navigation_guard.dart';
 import 'package:digilens/services/automatic_sms_guard_service.dart';
+import 'package:digilens/services/parental_control_service.dart';
 import 'package:digilens/theme/app_theme.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await ParentalControlService.instance.init();
   runApp(const DigiLensApp());
 }
 
