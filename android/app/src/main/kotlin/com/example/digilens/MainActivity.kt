@@ -8,8 +8,11 @@ import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
     private val CHANNEL = "com.example.digilens/browser"
+    private val SMS_CHANNEL = "com.example.digilens/sms_guard"
     private var methodChannel: MethodChannel? = null
+    private var smsMethodChannel: MethodChannel? = null
     private var pendingIntentUrl: String? = null
+    private var pendingSmsPayload: Map<String, String>? = null
 
     // Track the last intent identity to avoid re-processing the same intent
     // on configuration changes or when onNewIntent delivers the same object.
@@ -18,6 +21,24 @@ class MainActivity : FlutterActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         handleIntent(intent)
+        setupSmsReceiverListener()
+    }
+
+    private fun setupSmsReceiverListener() {
+        SmsReceiver.setSmsEventListener { sender, body, timestamp ->
+            runOnUiThread {
+                val payload = mapOf(
+                    "sender" to sender,
+                    "body" to body,
+                    "timestamp" to timestamp.toString()
+                )
+                if (smsMethodChannel != null) {
+                    smsMethodChannel?.invokeMethod("onIncomingSms", payload)
+                } else {
+                    pendingSmsPayload = payload
+                }
+            }
+        }
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -30,6 +51,27 @@ class MainActivity : FlutterActivity() {
         if (intent == null) return
         val action = intent.action
         val data = intent.data
+
+        if (intent.hasExtra("incoming_sms_body")) {
+            val body = intent.getStringExtra("incoming_sms_body") ?: ""
+            val sender = intent.getStringExtra("incoming_sms_sender") ?: "Unknown"
+            val timestamp = intent.getLongExtra("incoming_sms_timestamp", System.currentTimeMillis())
+            val intentIdentity = (sender + body + timestamp).hashCode().toLong()
+            if (intentIdentity == lastProcessedIntentId) return
+            lastProcessedIntentId = intentIdentity
+
+            val payload = mapOf(
+                "sender" to sender,
+                "body" to body,
+                "timestamp" to timestamp.toString(),
+                "fromNotification" to "true"
+            )
+            if (smsMethodChannel != null) {
+                smsMethodChannel?.invokeMethod("onSmsNotificationTapped", payload)
+            } else {
+                pendingSmsPayload = payload
+            }
+        }
 
         if (Intent.ACTION_VIEW == action && data != null) {
             // Use a synthetic identity based on dataString + timestamp to
@@ -90,6 +132,29 @@ class MainActivity : FlutterActivity() {
         pendingIntentUrl?.let { url ->
             channel.invokeMethod("onIncomingUrl", mapOf("url" to url))
             pendingIntentUrl = null
+        }
+
+        // Setup SMS Guard Method Channel
+        val smsChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, SMS_CHANNEL)
+        smsMethodChannel = smsChannel
+
+        smsChannel.setMethodCallHandler { call, result ->
+            when (call.method) {
+                "getPendingSms" -> {
+                    val payload = pendingSmsPayload
+                    pendingSmsPayload = null
+                    result.success(payload)
+                }
+                "checkSmsServiceStatus" -> {
+                    result.success(true)
+                }
+                else -> result.notImplemented()
+            }
+        }
+
+        pendingSmsPayload?.let { payload ->
+            smsChannel.invokeMethod("onIncomingSms", payload)
+            pendingSmsPayload = null
         }
     }
 }

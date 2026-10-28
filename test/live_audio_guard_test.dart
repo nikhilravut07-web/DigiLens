@@ -344,6 +344,8 @@ void main() {
 
       final simButton = find.text('Simulate Digital Arrest Threat');
       expect(simButton, findsOneWidget);
+      await tester.ensureVisible(simButton);
+      await tester.pumpAndSettle();
 
       await tester.tap(simButton);
       await tester.pumpAndSettle();

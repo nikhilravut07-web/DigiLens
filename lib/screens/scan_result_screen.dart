@@ -144,6 +144,57 @@ class ScanResultScreen extends StatelessWidget {
                 ],
               ),
             ),
+            if (result.type == ScanType.sms) ...[
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: AppTheme.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppTheme.grayBorder),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.person_pin_outlined,
+                          size: 16,
+                          color: AppTheme.indigo,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Sender: ${_maskSender(result.sender ?? "Unknown")}',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: AppTheme.navyText,
+                          ),
+                        ),
+                      ],
+                    ),
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.access_time_rounded,
+                          size: 15,
+                          color: AppTheme.mutedText,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          _formatTimestamp(result.timestamp),
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: AppTheme.mutedText,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: 24),
 
             // Scanned Input Card
@@ -437,5 +488,25 @@ class ScanResultScreen extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  String _maskSender(String sender) {
+    final digits = sender.replaceAll(RegExp(r'\D'), '');
+    if (digits.length >= 10) {
+      final prefix = sender.startsWith('+') ? '${sender.substring(0, 3)} ' : '';
+      final last10 = digits.substring(digits.length - 10);
+      return '$prefix${last10.substring(0, 2)}******${last10.substring(8)}';
+    }
+    return sender;
+  }
+
+  String _formatTimestamp(DateTime dt) {
+    final local = dt.toLocal();
+    final year = local.year;
+    final month = local.month.toString().padLeft(2, '0');
+    final day = local.day.toString().padLeft(2, '0');
+    final hour = local.hour.toString().padLeft(2, '0');
+    final minute = local.minute.toString().padLeft(2, '0');
+    return '$year-$month-$day $hour:$minute';
   }
 }

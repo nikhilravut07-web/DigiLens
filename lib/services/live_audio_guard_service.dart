@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
@@ -6,7 +7,8 @@ import 'package:speech_to_text/speech_recognition_result.dart';
 import 'package:speech_to_text/speech_recognition_error.dart';
 import 'package:digilens/models/scan_result.dart';
 import 'package:digilens/services/scan_history_service.dart';
-import 'package:digilens/services/voice_analysis_service.dart';
+import 'package:digilens/services/voice_classifier_interface.dart';
+import 'package:digilens/services/ai_voice_analysis_service.dart';
 
 enum AudioGuardStatus {
   idle,
@@ -107,12 +109,16 @@ class DefaultSpeechRecognizer implements ISpeechRecognizer {
 class LiveAudioGuardService extends ChangeNotifier {
   static final LiveAudioGuardService instance = LiveAudioGuardService._internal();
 
-  LiveAudioGuardService._internal({ISpeechRecognizer? speechRecognizer}) {
+  LiveAudioGuardService._internal({
+    ISpeechRecognizer? speechRecognizer,
+    VoiceTranscriptClassifier? classifier,
+  }) {
     _speech = speechRecognizer ?? DefaultSpeechRecognizer();
+    _classifier = classifier ?? AiVoiceAnalysisService();
   }
 
   ISpeechRecognizer _speech = DefaultSpeechRecognizer();
-  final VoiceAnalysisService _voiceAnalysisService = VoiceAnalysisService();
+  VoiceTranscriptClassifier _classifier = AiVoiceAnalysisService();
 
   AudioGuardStatus _status = AudioGuardStatus.idle;
   String _statusMessage = 'Ready to start live audio guard';
@@ -128,6 +134,7 @@ class LiveAudioGuardService extends ChangeNotifier {
 
   final List<String> _confirmedPhrases = [];
   String _currentPartial = '';
+  String _selectedLanguage = 'en-IN';
 
   bool _isInitialized = false;
   String _lastAnalyzedTranscript = '';
@@ -147,11 +154,25 @@ class LiveAudioGuardService extends ChangeNotifier {
   ScanResult? get latestScanResult => _latestScanResult;
   ThreatAlert? get currentThreatAlert => _currentThreatAlert;
   int get threatAlertVersion => _threatAlertVersion;
+  String get selectedLanguage => _selectedLanguage;
+  VoiceTranscriptClassifier get classifier => _classifier;
+
+  void setSelectedLanguage(String locale) {
+    if (_selectedLanguage != locale) {
+      _selectedLanguage = locale;
+      notifyListeners();
+    }
+  }
 
   @visibleForTesting
   void setSpeechRecognizerForTesting(ISpeechRecognizer recognizer) {
     _speech = recognizer;
     _isInitialized = false;
+  }
+
+  @visibleForTesting
+  void setClassifierForTesting(VoiceTranscriptClassifier classifier) {
+    _classifier = classifier;
   }
 
   /// Explicitly request microphone permission when user starts Live Audio Detection.
@@ -264,7 +285,8 @@ class LiveAudioGuardService extends ChangeNotifier {
           cancelOnError: false, // Handle errors gracefully without sudden termination
           listenMode: stt.ListenMode.dictation,
           listenFor: const Duration(minutes: 15),
-          pauseFor: const Duration(seconds: 6),
+          pauseFor: const Duration(seconds: 4),
+          localeId: _selectedLanguage,
         ),
       );
     } catch (e) {
@@ -275,17 +297,50 @@ class LiveAudioGuardService extends ChangeNotifier {
     }
   }
 
+  /// Removes accidental overlap between confirmed transcript tail and incoming utterance,
+  /// while preserving genuinely repeated phrases inside the utterance.
+  static String removeOverlap(String priorText, String incoming) {
+    final priorClean = priorText.trim();
+    final incomingClean = incoming.trim();
+    if (priorClean.isEmpty || incomingClean.isEmpty) return incomingClean;
+
+    final priorWords = priorClean.split(RegExp(r'\s+'));
+    final incomingWords = incomingClean.split(RegExp(r'\s+'));
+
+    int maxOverlap = 0;
+    final maxCheck = math.min(priorWords.length, incomingWords.length);
+
+    for (int len = 1; len <= maxCheck; len++) {
+      bool match = true;
+      for (int i = 0; i < len; i++) {
+        if (priorWords[priorWords.length - len + i].toLowerCase() !=
+            incomingWords[i].toLowerCase()) {
+          match = false;
+          break;
+        }
+      }
+      if (match) {
+        maxOverlap = len;
+      }
+    }
+
+    if (maxOverlap > 0) {
+      return incomingWords.sublist(maxOverlap).join(' ').trim();
+    }
+    return incomingClean;
+  }
+
   void _commitPhrase(String phrase) {
     final clean = phrase.trim();
     if (clean.isEmpty) return;
 
-    // Prevent duplicate consecutive chunks
-    if (_confirmedPhrases.isNotEmpty &&
-        _confirmedPhrases.last.toLowerCase() == clean.toLowerCase()) {
-      return;
-    }
+    // Remove accidental overlap with existing confirmed phrases
+    final priorText = _confirmedPhrases.join(' ');
+    final nonOverlapping = removeOverlap(priorText, clean);
 
-    _confirmedPhrases.add(clean);
+    if (nonOverlapping.isNotEmpty) {
+      _confirmedPhrases.add(nonOverlapping);
+    }
   }
 
   String _buildTranscript() {
@@ -317,30 +372,25 @@ class LiveAudioGuardService extends ChangeNotifier {
     }
 
     final updatedTranscript = _buildTranscript();
-    if (updatedTranscript == _liveTranscript) return;
+    if (updatedTranscript != _liveTranscript) {
+      _liveTranscript = updatedTranscript;
+      notifyListeners();
+    }
 
-    _liveTranscript = updatedTranscript;
-    notifyListeners();
-
-    // Analyze incremental updates
-    _analyzeTranscriptIncrementally(updatedTranscript, result.finalResult);
+    // Only analyze complete, stabilized utterances to avoid partial false alerts
+    if (result.finalResult) {
+      _analyzeTranscriptIncrementally(updatedTranscript, true);
+    }
   }
 
   Future<void> _analyzeTranscriptIncrementally(String transcript, bool isFinal) async {
     final clean = transcript.trim();
     if (clean.isEmpty || clean == _lastAnalyzedTranscript) return;
 
-    // Debounce small changes unless it is a final result
-    if (!isFinal &&
-        clean.length >= _lastAnalyzedTranscript.length &&
-        (clean.length - _lastAnalyzedTranscript.length) < 8) {
-      return;
-    }
-
     _lastAnalyzedTranscript = clean;
 
     try {
-      final result = await _voiceAnalysisService.classifyTranscript(clean);
+      final result = await _classifier.classifyTranscript(clean);
       _latestScanResult = result;
 
       if (result.riskLevel == RiskLevel.high || result.riskLevel == RiskLevel.critical) {
@@ -354,7 +404,7 @@ class LiveAudioGuardService extends ChangeNotifier {
                 ? result.description
                 : 'Suspicious audio pattern matched known vishing or extortion scripts.');
 
-        // Prevent duplicate popups for the same suspicious phrase during partial streaming
+        // Prevent duplicate popups for the same suspicious phrase during ongoing streaming
         final isAlreadyAlerted = result.warnings.isNotEmpty
             ? result.warnings.any((w) => _alertedThreatKeys.contains(w.title))
             : _alertedThreatKeys.contains(result.title);
@@ -390,7 +440,7 @@ class LiveAudioGuardService extends ChangeNotifier {
         }
       }
     } catch (e) {
-      debugPrint('VoiceAnalysisService classification error: $e');
+      debugPrint('Voice analysis classification error: $e');
     }
   }
 

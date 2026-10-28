@@ -1,8 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:digilens/services/automatic_sms_guard_service.dart';
 import 'package:digilens/theme/app_theme.dart';
 
-class SettingsScreen extends StatelessWidget {
+class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
+
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  bool _autoSms = AutomaticSmsGuardService.instance.isProtectionEnabled;
+  bool _cloudAi = AutomaticSmsGuardService.instance.isCloudAiEnabled;
 
   @override
   Widget build(BuildContext context) {
@@ -159,8 +168,8 @@ class SettingsScreen extends StatelessWidget {
           _buildInfoTile(
             context,
             icon: Icons.privacy_tip_outlined,
-            title: 'User-Initiated Privacy',
-            description: 'Scans are strictly user-initiated. DigiLens does NOT read SMS inboxes in background, intercept network packets, or monitor calls without explicit action.',
+            title: 'Privacy & Data Protection',
+            description: 'DigiLens intercepts only newly incoming SMS broadcasts via system receiver with your explicit permission. Scans mask OTPs, credit cards, and sensitive identifiers. Data is analyzed contextually with on-device heuristics or Gemini AI with your opt-in.',
           ),
           const SizedBox(height: 24),
 
@@ -178,6 +187,61 @@ class SettingsScreen extends StatelessWidget {
           Card(
             child: Column(
               children: [
+                SwitchListTile(
+                  secondary: const Icon(
+                    Icons.security_update_good_outlined,
+                    color: AppTheme.indigo,
+                  ),
+                  title: const Text(
+                    'Automatic SMS Scam Guard',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                  ),
+                  subtitle: const Text(
+                    'Intercept & scan incoming SMS messages',
+                    style: TextStyle(fontSize: 12),
+                  ),
+                  value: _autoSms,
+                  onChanged: (val) async {
+                    if (val) {
+                      final messenger = ScaffoldMessenger.of(context);
+                      final perms = await AutomaticSmsGuardService.instance.requestPermissions();
+                      if (perms['sms'] != true) {
+                        messenger.showSnackBar(
+                          const SnackBar(content: Text('SMS permission is required.')),
+                        );
+                        return;
+                      }
+                    }
+                    if (!mounted) return;
+                    setState(() {
+                      _autoSms = val;
+                    });
+                    AutomaticSmsGuardService.instance.setProtectionEnabled(val);
+                  },
+                ),
+                const Divider(height: 1),
+                SwitchListTile(
+                  secondary: const Icon(
+                    Icons.cloud_sync_outlined,
+                    color: AppTheme.indigo,
+                  ),
+                  title: const Text(
+                    'Cloud AI Smishing Analysis',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                  ),
+                  subtitle: const Text(
+                    'Contextual Gemini 3.5 Flash analysis with local fallback',
+                    style: TextStyle(fontSize: 12),
+                  ),
+                  value: _cloudAi,
+                  onChanged: (val) {
+                    setState(() {
+                      _cloudAi = val;
+                    });
+                    AutomaticSmsGuardService.instance.setCloudAiEnabled(val);
+                  },
+                ),
+                const Divider(height: 1),
                 SwitchListTile(
                   secondary: const Icon(
                     Icons.notifications_active_outlined,

@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:digilens/screens/home_screen.dart';
 import 'package:digilens/screens/scan_history_screen.dart';
 import 'package:digilens/screens/settings_screen.dart';
+import 'package:digilens/screens/scan_result_screen.dart';
 import 'package:digilens/services/pre_navigation_guard.dart';
+import 'package:digilens/services/automatic_sms_guard_service.dart';
 import 'package:digilens/theme/app_theme.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -24,6 +26,22 @@ class _DigiLensAppState extends State<DigiLensApp> {
   void initState() {
     super.initState();
     PreNavigationGuard.initIntentHandler(navigatorKey);
+    AutomaticSmsGuardService.instance.initialize();
+    AutomaticSmsGuardService.onNotificationTapNavigation = (result, scannedInput) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final navState = navigatorKey.currentState;
+        if (navState != null && navState.mounted) {
+          navState.push(
+            MaterialPageRoute(
+              builder: (context) => ScanResultScreen(
+                result: result,
+                scannedInput: scannedInput,
+              ),
+            ),
+          );
+        }
+      });
+    };
   }
 
   @override

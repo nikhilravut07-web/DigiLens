@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:digilens/models/scan_result.dart';
 import 'package:digilens/services/sms_analysis_service.dart';
+import 'package:digilens/services/automatic_sms_guard_service.dart';
 import 'package:digilens/services/scan_history_service.dart';
 import 'package:digilens/screens/scan_result_screen.dart';
 import 'package:digilens/theme/app_theme.dart';
@@ -15,6 +17,8 @@ class _SmsAnalyzerScreenState extends State<SmsAnalyzerScreen> {
   final _formKey = GlobalKey<FormState>();
   final _textController = TextEditingController();
   bool _isLoading = false;
+  bool _autoSmsEnabled = AutomaticSmsGuardService.instance.isProtectionEnabled;
+  bool _cloudAiEnabled = AutomaticSmsGuardService.instance.isCloudAiEnabled;
 
   @override
   void dispose() {
@@ -31,10 +35,18 @@ class _SmsAnalyzerScreenState extends State<SmsAnalyzerScreen> {
 
     try {
       final text = _textController.text.trim();
-      final result = await SmsAnalysisService.analyzeSms(text);
-
-      // Record to history
-      ScanHistoryService.instance.recordScan(rawInput: text, result: result);
+      ScanResult result;
+      if (_cloudAiEnabled) {
+        // Use automatic SMS guard service which queries cloud AI backend with fallback
+        result = await AutomaticSmsGuardService.instance.processIncomingSms(
+          sender: 'ManualTest',
+          body: text,
+          fromTap: true,
+        ) ?? await SmsAnalysisService.analyzeSms(text);
+      } else {
+        result = await SmsAnalysisService.analyzeSms(text);
+        ScanHistoryService.instance.recordScan(rawInput: text, result: result);
+      }
 
       if (!mounted) return;
 
@@ -99,44 +111,96 @@ class _SmsAnalyzerScreenState extends State<SmsAnalyzerScreen> {
                       color: const Color(0xFF0EA5E9).withValues(alpha: 0.3),
                     ),
                   ),
-                  child: Row(
+                  child: Column(
                     children: [
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF0EA5E9).withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Icon(
-                          Icons.sms_outlined,
-                          color: const Color(0xFF0EA5E9),
-                          size: 30,
-                        ),
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF0EA5E9).withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(
+                              Icons.sms_outlined,
+                              color: Color(0xFF0EA5E9),
+                              size: 30,
+                            ),
+                          ),
+                          const SizedBox(width: 14),
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Automatic Smishing & SMS Guard',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppTheme.navyText,
+                                  ),
+                                ),
+                                SizedBox(height: 4),
+                                Text(
+                                  'Real-time incoming SMS protection with Gemini AI & local fallback.',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: AppTheme.mutedText,
+                                    height: 1.4,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Smishing & Fraud Detector',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w700,
-                                color: AppTheme.navyText,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'Inspect messages for urgent payment demands, lottery scams, fake bank KYC alerts, and OTP requests.',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: AppTheme.mutedText,
-                                height: 1.4,
-                              ),
-                            ),
-                          ],
+                      const Divider(height: 24),
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text(
+                          'Background SMS Monitoring',
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
                         ),
+                        subtitle: const Text(
+                          'Inspect incoming messages automatically',
+                          style: TextStyle(fontSize: 11),
+                        ),
+                        value: _autoSmsEnabled,
+                        onChanged: (val) async {
+                          if (val) {
+                            final messenger = ScaffoldMessenger.of(context);
+                            final perms = await AutomaticSmsGuardService.instance.requestPermissions();
+                            if (perms['sms'] != true) {
+                              messenger.showSnackBar(
+                                const SnackBar(content: Text('SMS permission is required for automatic incoming SMS protection.')),
+                              );
+                              return;
+                            }
+                          }
+                          if (!mounted) return;
+                          setState(() {
+                            _autoSmsEnabled = val;
+                          });
+                          AutomaticSmsGuardService.instance.setProtectionEnabled(val);
+                        },
+                      ),
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text(
+                          'Cloud-Assisted AI (Gemini Flash)',
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                        ),
+                        subtitle: const Text(
+                          'Enable Cloud AI (Recommended)',
+                          style: TextStyle(fontSize: 11),
+                        ),
+                        value: _cloudAiEnabled,
+                        onChanged: (val) {
+                          setState(() {
+                            _cloudAiEnabled = val;
+                          });
+                          AutomaticSmsGuardService.instance.setCloudAiEnabled(val);
+                        },
                       ),
                     ],
                   ),

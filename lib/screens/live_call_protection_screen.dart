@@ -447,6 +447,43 @@ class _LiveCallProtectionScreenState extends State<LiveCallProtectionScreen> {
                     style: TextStyle(fontSize: 12, color: AppTheme.mutedText, height: 1.4),
                   ),
                   const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      const Icon(Icons.language, size: 18, color: AppTheme.indigo),
+                      const SizedBox(width: 8),
+                      const Text(
+                        'Recognition Language:',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: AppTheme.navyText,
+                        ),
+                      ),
+                      const Spacer(),
+                      DropdownButton<String>(
+                        value: _guardService.selectedLanguage,
+                        underline: const SizedBox(),
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: AppTheme.indigo,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        items: const [
+                          DropdownMenuItem(value: 'en-IN', child: Text('English (India)')),
+                          DropdownMenuItem(value: 'en-US', child: Text('English (US)')),
+                          DropdownMenuItem(value: 'hi-IN', child: Text('Hindi (India)')),
+                        ],
+                        onChanged: isListening
+                            ? null
+                            : (val) {
+                                if (val != null) {
+                                  _guardService.setSelectedLanguage(val);
+                                }
+                              },
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
                   if (isPermanentlyDenied) ...[
                     Container(
                       padding: const EdgeInsets.all(12),

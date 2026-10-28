@@ -20,7 +20,7 @@ class SmsAnalysisService {
   }
 
   /// Analyze SMS text for fraud indicators and return a structured [ScanResult].
-  static Future<ScanResult> analyzeSms(String rawSms) async {
+  static Future<ScanResult> analyzeSms(String rawSms, {String? sender}) async {
     // Brief simulated delay
     await Future.delayed(const Duration(milliseconds: 600));
 
@@ -268,6 +268,7 @@ class SmsAnalysisService {
       analysisMethod: AnalysisMethod.localHeuristics,
       originalInput: rawSms,
       extractedUrls: extractedUrls,
+      sender: sender,
     );
   }
 

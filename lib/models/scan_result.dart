@@ -71,6 +71,9 @@ class ScanResult {
   /// URLs extracted from the scanned content.
   final List<String> extractedUrls;
 
+  /// Originating sender (phone number or alphanumeric header) if known.
+  final String? sender;
+
   const ScanResult({
     required this.id,
     required this.timestamp,
@@ -85,6 +88,7 @@ class ScanResult {
     this.analysisMethod = AnalysisMethod.localHeuristics,
     this.originalInput,
     this.extractedUrls = const [],
+    this.sender,
   });
 
   Map<String, dynamic> toJson() {
@@ -98,6 +102,7 @@ class ScanResult {
       'warnings': warnings.map((w) => w.toJson()).toList(),
       'recommendation': recommendation,
       if (claimedBrand != null) 'claimedBrand': claimedBrand,
+      if (sender != null) 'sender': sender,
       'riskScore': riskScore,
       'analysisMethod': analysisMethod.name,
       'extractedUrls': extractedUrls,
@@ -117,6 +122,7 @@ class ScanResult {
           .toList(),
       recommendation: json['recommendation'],
       claimedBrand: json['claimedBrand'] as String?,
+      sender: json['sender'] as String?,
       riskScore: json['riskScore'] ?? 0,
       analysisMethod: json['analysisMethod'] != null
           ? AnalysisMethod.values.byName(json['analysisMethod'])
