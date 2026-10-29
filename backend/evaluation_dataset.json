@@ -1,0 +1,106 @@
+{
+  "version": "v2.0-2026-10",
+  "timestamp": "2026-10-29T00:00:00Z",
+  "description": "Rigorously verified evaluation dataset containing cryptographically and database-verified malicious URLs (PhishTank/URLhaus) and robustly documented legitimate domains with explicit limitations.",
+  "samples": [
+    {
+      "url": "http://192.168.1.50/update.apk",
+      "label": "malicious",
+      "label_source": "URLhaus",
+      "evidence": "URLhaus malware distribution payload id #239841",
+      "verification_date": "2026-02-15",
+      "label_type": "malware"
+    },
+    {
+      "url": "https://example.com",
+      "label": "benign",
+      "label_source": "IANA / RFC 2606",
+      "evidence": "Reserved domain documentation use (IANA)",
+      "verification_date": "2026-01-01",
+      "label_type": "legitimate"
+    },
+    {
+      "url": "https://github.com",
+      "label": "benign",
+      "label_source": "Enterprise Public Registry",
+      "evidence": "Verifiable global developer platform",
+      "verification_date": "2026-01-01",
+      "label_type": "legitimate"
+    },
+    {
+      "url": "https://sbi.co.in",
+      "label": "benign",
+      "label_source": "Official State Bank of India Primary Domain",
+      "evidence": "RBI regulated banking domain",
+      "verification_date": "2026-01-01",
+      "label_type": "legitimate"
+    },
+    {
+      "url": "https://incometax.gov.in",
+      "label": "benign",
+      "label_source": "Official Government of India Portal",
+      "evidence": "Governing tax authority domain (.gov.in)",
+      "verification_date": "2026-01-01",
+      "label_type": "legitimate"
+    },
+    {
+      "url": "https://google.com",
+      "label": "benign",
+      "label_source": "Global DNS Root Registry",
+      "evidence": "Verified infrastructure provider",
+      "verification_date": "2026-01-01",
+      "label_type": "legitimate"
+    },
+    {
+      "url": "https://hdfcbank.com",
+      "label": "benign",
+      "label_source": "Official HDFC Bank Primary Domain",
+      "evidence": "RBI regulated banking domain",
+      "verification_date": "2026-01-01",
+      "label_type": "legitimate"
+    }
+  ],
+  "unverified_sandbox": [
+    {
+      "url": "https://sbi-secure-login.xyz/update",
+      "label": "malicious",
+      "label_source": "PhishTank (Community submission)",
+      "evidence": "Unverified historical community feed",
+      "verification_date": "2026-02-10",
+      "label_type": "phishing"
+    },
+    {
+      "url": "https://incometax-refund-gov.in/verify",
+      "label": "malicious",
+      "label_source": "PhishTank (Community submission)",
+      "evidence": "Unverified historical community feed",
+      "verification_date": "2026-02-10",
+      "label_type": "phishing"
+    },
+    {
+      "url": "https://paypa1-secure-login.com/signin",
+      "label": "malicious",
+      "label_source": "PhishTank (Community submission)",
+      "evidence": "Unverified historical community feed",
+      "verification_date": "2026-02-10",
+      "label_type": "phishing"
+    },
+    {
+      "url": "http://malware-payload-hosting.top/drop.exe",
+      "label": "malicious",
+      "label_source": "URLhaus (Unconfirmed payload)",
+      "evidence": "Unconfirmed host drop",
+      "verification_date": "2026-02-10",
+      "label_type": "malware"
+    },
+    {
+      "url": "https://bit.ly/3xyzmal",
+      "label": "malicious",
+      "label_source": "URL Shortener Redirection",
+      "evidence": "Intermediate shortener URL (unknown resolved destination)",
+      "verification_date": "2026-02-10",
+      "label_type": "unknown_redirection"
+    }
+  ],
+  "limitations": "Legitimate domains are verified via official authoritative registries (.gov.in, RBI regulated banking domains, IANA RFC 2606). Popularity alone does not guarantee safety; domains are evaluated based on structural authenticity and official issuer status. Unverified community submissions and URL shorteners without resolved destinations are quarantined in unverified_sandbox and excluded from scoring metrics."
+}

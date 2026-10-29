@@ -9,9 +9,6 @@ void main() {
     // Verify app title is present
     expect(find.text('DigiLens'), findsOneWidget);
 
-    // Verify DEMO badge is visible
-    expect(find.text('DEMO'), findsOneWidget);
-
     // Verify Quick Scan section exists
     expect(find.text('Quick Scan'), findsOneWidget);
 
@@ -21,7 +18,7 @@ void main() {
     expect(find.text('Call'), findsOneWidget);
     expect(find.text('QR Code'), findsOneWidget);
 
-    // Verify recent activity section
-    expect(find.text('Today'), findsOneWidget);
+    // Verify recent scans section
+    expect(find.text('Recent Scans'), findsOneWidget);
   });
 }

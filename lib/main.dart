@@ -1,18 +1,32 @@
 import 'package:flutter/material.dart';
 import 'package:digilens/screens/home_screen.dart';
 import 'package:digilens/screens/scan_history_screen.dart';
+import 'package:digilens/screens/performance_screen.dart';
 import 'package:digilens/screens/settings_screen.dart';
 import 'package:digilens/screens/scan_result_screen.dart';
+import 'package:digilens/services/scan_history_service.dart';
 import 'package:digilens/services/pre_navigation_guard.dart';
 import 'package:digilens/services/automatic_sms_guard_service.dart';
 import 'package:digilens/services/parental_control_service.dart';
+import 'package:digilens/services/url_analysis_service.dart';
 import 'package:digilens/theme/app_theme.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Read backend URL from build-time --dart-define=BACKEND_BASE_URL=...
+  const definedUrl = String.fromEnvironment('BACKEND_BASE_URL', defaultValue: '');
+  if (definedUrl.isNotEmpty) {
+    UrlAnalysisService.backendBaseUrl = definedUrl;
+    debugPrint('[DigiLens Config] Backend Base URL configured: $definedUrl');
+  } else {
+    debugPrint('[DigiLens Config] WARNING: BACKEND_BASE_URL is not set via --dart-define.');
+  }
+
   await ParentalControlService.instance.init();
+  await ScanHistoryService.instance.init();
   runApp(const DigiLensApp());
 }
 
@@ -73,6 +87,7 @@ class _MainNavigationState extends State<MainNavigation> {
   static final List<Widget> _screens = [
     const HomeScreen(),
     const ScanHistoryScreen(),
+    const PerformanceScreen(),
     const SettingsScreen(),
   ];
 
@@ -91,18 +106,23 @@ class _MainNavigationState extends State<MainNavigation> {
         onDestinationSelected: _onItemTapped,
         destinations: const [
           NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home),
+            icon: Icon(Icons.home_outlined, size: 24),
+            selectedIcon: Icon(Icons.home, size: 24),
             label: 'Home',
           ),
           NavigationDestination(
-            icon: Icon(Icons.history_outlined),
-            selectedIcon: Icon(Icons.history),
+            icon: Icon(Icons.history_outlined, size: 24),
+            selectedIcon: Icon(Icons.history, size: 24),
             label: 'History',
           ),
           NavigationDestination(
-            icon: Icon(Icons.settings_outlined),
-            selectedIcon: Icon(Icons.settings),
+            icon: Icon(Icons.analytics_outlined, size: 24),
+            selectedIcon: Icon(Icons.analytics, size: 24),
+            label: 'Performance',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.settings_outlined, size: 24),
+            selectedIcon: Icon(Icons.settings, size: 24),
             label: 'Settings',
           ),
         ],

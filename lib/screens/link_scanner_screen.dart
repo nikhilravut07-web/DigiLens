@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:digilens/services/url_analysis_service.dart';
 import 'package:digilens/services/scan_history_service.dart';
 import 'package:digilens/screens/scan_result_screen.dart';
+import 'package:digilens/screens/qr_scanner_screen.dart';
 import 'package:digilens/theme/app_theme.dart';
 
 class LinkScannerScreen extends StatefulWidget {
@@ -163,6 +164,16 @@ class _LinkScannerScreenState extends State<LinkScannerScreen> {
                     prefixIcon: const Icon(
                       Icons.language,
                       color: AppTheme.navyLight,
+                    ),
+                    suffixIcon: IconButton(
+                      icon: const Icon(Icons.qr_code_scanner, color: AppTheme.primary),
+                      tooltip: 'Scan QR Code',
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const QrScannerScreen()),
+                        );
+                      },
                     ),
                     filled: true,
                     fillColor: AppTheme.white,

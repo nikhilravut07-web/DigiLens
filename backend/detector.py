@@ -2,6 +2,8 @@
 Core scam detection logic and fallback heuristics for DigiLens.
 Standard library only, zero external dependencies required for standalone testing.
 """
+import re
+from urllib.parse import urlparse
 
 def local_heuristic_fallback(transcript: str) -> dict:
     lower = transcript.lower()
@@ -169,3 +171,167 @@ def local_sms_heuristic_fallback(body: str, sender: str = "") -> dict:
         "analysis_method": "local_fallback"
     }
 
+# ─── URL Heuristic Detector (Pure Python implementation matching DigiLens URL Analysis Service) ───
+
+BRAND_SIGNATURES = {
+    "sbi": ["sbi.co.in", "onlinesbi.sbi", "onlinesbi.com", "sbicap.com", "sbicard.com"],
+    "hdfc": ["hdfcbank.com", "hdfcsec.com", "hdfcfund.com"],
+    "icici": ["icicibank.com", "icicidirect.com", "icicibank.co.in"],
+    "axis": ["axisbank.com", "axisdirect.in"],
+    "paytm": ["paytm.com", "paytmbank.com"],
+    "phonepe": ["phonepe.com"],
+    "gpay": ["pay.google.com"],
+    "paypal": ["paypal.com", "paypal.me"],
+    "amazon": ["amazon.in", "amazon.com", "amazonpay.in"],
+    "flipkart": ["flipkart.com"],
+    "apple": ["apple.com", "icloud.com"],
+    "google": ["google.com", "google.co.in", "googleapis.com"],
+    "microsoft": ["microsoft.com", "live.com", "outlook.com", "office.com"],
+    "facebook": ["facebook.com", "fb.com", "fb.me"],
+    "instagram": ["instagram.com"],
+    "whatsapp": ["whatsapp.com"],
+    "incometax": ["incometax.gov.in", "incometaxindia.gov.in"],
+    "aadhaar": ["uidai.gov.in"],
+    "epfo": ["epfindia.gov.in"],
+}
+
+HIGH_RISK_TLDS = {
+    ".xyz", ".top", ".click", ".work", ".download", ".stream", ".loan", ".men",
+    ".win", ".zip", ".mov", ".tk", ".ml", ".ga", ".cf", ".gq", ".cc", ".buzz",
+    ".icu", ".monster", ".surf", ".rest", ".fit"
+}
+
+MODERATE_RISK_TLDS = {
+    ".info", ".biz", ".space", ".site", ".online", ".club", ".live", ".store",
+    ".fun", ".host", ".website", ".pw"
+}
+
+SHORTENER_DOMAINS = {
+    "bit.ly", "tinyurl.com", "t.co", "goo.gl", "ow.ly", "is.gd", "buff.ly",
+    "rebrand.ly", "shorturl.at", "cutt.ly", "rb.gy", "surl.li", "tiny.cc",
+    "v.gd", "qr.ae", "lnkd.in"
+}
+
+def analyze_url_heuristics(raw_url: str) -> dict:
+    """
+    Standard DigiLens URL heuristic analysis.
+    Identical scoring and risk classification as DigiLens UrlAnalysisService in Flutter.
+    """
+    trimmed = raw_url.strip()
+    lower = trimmed.lower()
+
+    if lower.startswith("javascript:") or lower.startswith("data:"):
+        return {
+            "risk_level": "critical",
+            "risk_score": 90,
+            "title": "Dangerous Non-HTTP URI Scheme",
+            "warnings": ["Executable non-HTTP scheme detected"]
+        }
+
+    # Prepend https if scheme is missing
+    if not (lower.startswith("http://") or lower.startswith("https://")):
+        trimmed = f"https://{trimmed}"
+
+    parsed = urlparse(trimmed)
+    host = (parsed.hostname or "").lower()
+    path = (parsed.path or "").lower()
+    full_url = trimmed.lower()
+
+    if not host:
+        return {
+            "risk_level": "critical",
+            "risk_score": 90,
+            "title": "Invalid URL",
+            "warnings": ["URL could not be parsed"]
+        }
+
+    score = 0
+    warnings = []
+
+    # 1. IP address URL
+    if re.match(r"^(\d{1,3}\.){3}\d{1,3}$", host) or (":" in host and re.match(r"^[0-9a-f:]+$", host)):
+        score += 35
+        warnings.append("IP address instead of domain name")
+
+    # 2. Suspicious TLD
+    for tld in HIGH_RISK_TLDS:
+        if host.endswith(tld):
+            score += 25
+            warnings.append(f"High-risk domain extension ({tld})")
+            break
+    else:
+        for tld in MODERATE_RISK_TLDS:
+            if host.endswith(tld):
+                score += 12
+                warnings.append(f"Uncommon domain extension ({tld})")
+                break
+
+    # 3. URL Shortener
+    if host in SHORTENER_DOMAINS:
+        score += 35
+        warnings.append("URL shortener detected")
+
+    # 4. Brand impersonation / typosquatting
+    normalized_host = host.replace("0", "o").replace("1", "l").replace("rn", "m").replace("vv", "w").replace("cl", "d")
+    for keyword, official_domains in BRAND_SIGNATURES.items():
+        mentions_directly = keyword in host
+        mentions_normalized = keyword in normalized_host
+
+        if not mentions_directly and not mentions_normalized:
+            continue
+
+        if any(host == d or host.endswith(f".{d}") for d in official_domains):
+            continue  # Legitimate official domain
+
+        if not mentions_directly and mentions_normalized:
+            score += 55
+            warnings.append(f"Lookalike domain for {keyword}")
+        else:
+            is_gov = keyword in ["incometax", "aadhaar", "epfo"]
+            score += 55 if is_gov else 35
+            warnings.append(f"Possible brand impersonation ({keyword})")
+
+    # 5. Sensitive action keywords in path
+    sensitive_patterns = ["login", "signin", "sign-in", "verify", "secure", "account", "update", "confirm", "banking", "password", "credential", "authenticate", "wallet", "payment"]
+    matches = [p for p in sensitive_patterns if p in path]
+    if len(matches) >= 2:
+        score += 15
+        warnings.append(f"Sensitive action keywords in URL path: {', '.join(matches)}")
+
+    # 6. HTTP scheme
+    if parsed.scheme == "http":
+        score += 10
+        warnings.append("No HTTPS encryption")
+
+    # 7. Punycode
+    if "xn--" in host:
+        score += 30
+        warnings.append("Internationalized domain (punycode)")
+
+    # 8. Excessive length
+    if len(full_url) > 200:
+        score += 10
+        warnings.append("Unusually long URL")
+
+    # 9. Credential prefix (@)
+    if "@" in full_url and not full_url.startswith("mailto:"):
+        score += 80
+        warnings.append("Credential prefix in URL")
+
+    # Risk level classification
+    if score >= 80:
+        risk_level = "critical"
+    elif score >= 55:
+        risk_level = "high"
+    elif score >= 35:
+        risk_level = "medium"
+    elif score >= 15:
+        risk_level = "low"
+    else:
+        risk_level = "safe"
+
+    return {
+        "risk_level": risk_level,
+        "risk_score": min(score, 100),
+        "warnings": warnings
+    }

@@ -49,6 +49,16 @@ class _ParentalPinModalState extends State<ParentalPinModal> {
   bool _isLoading = false;
 
   @override
+  void initState() {
+    super.initState();
+    for (int i = 0; i < 6; i++) {
+      _controllers[i].addListener(() {
+        if (mounted) setState(() {});
+      });
+    }
+  }
+
+  @override
   void dispose() {
     for (var c in _controllers) {
       c.dispose();
@@ -92,7 +102,6 @@ class _ParentalPinModalState extends State<ParentalPinModal> {
 
     try {
       if (widget.isConfirmMode) {
-        // In confirm mode, we just return the 6-digit PIN entered
         Navigator.pop(context, true);
         return;
       }
@@ -141,16 +150,16 @@ class _ParentalPinModalState extends State<ParentalPinModal> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       title: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(10),
+            padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: AppTheme.indigo.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(12),
+              color: AppTheme.primaryLight.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(10),
             ),
-            child: const Icon(Icons.lock_outline, color: AppTheme.indigo, size: 24),
+            child: const Icon(Icons.lock_outline, color: AppTheme.primary, size: 24),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -161,91 +170,113 @@ class _ParentalPinModalState extends State<ParentalPinModal> {
           ),
         ],
       ),
-      content: SizedBox(
-        width: 320,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              widget.subtitle,
-              style: const TextStyle(fontSize: 13, color: AppTheme.mutedText, height: 1.4),
-            ),
-            const SizedBox(height: 24),
-            // 6-digit PIN input boxes
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: List.generate(6, (index) {
-                return SizedBox(
-                  width: 42,
-                  height: 50,
-                  child: TextField(
-                    controller: _controllers[index],
-                    focusNode: _focusNodes[index],
-                    keyboardType: TextInputType.number,
-                    textAlign: TextAlign.center,
-                    maxLength: 1,
-                    obscureText: true,
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w700,
-                      color: AppTheme.navyText,
-                    ),
-                    decoration: InputDecoration(
-                      counterText: '',
-                      filled: true,
-                      fillColor: AppTheme.lavenderBackground,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: const BorderSide(color: AppTheme.grayBorder),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: const BorderSide(color: AppTheme.grayBorder),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: const BorderSide(color: AppTheme.indigo, width: 2),
-                      ),
-                    ),
-                    onChanged: (value) => _onDigitChanged(index, value),
-                  ),
-                );
-              }),
-            ),
-            if (_errorMessage.isNotEmpty) ...[
-              const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: AppTheme.redLight,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.error_outline, color: AppTheme.red, size: 16),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        _errorMessage,
-                        style: const TextStyle(fontSize: 12, color: AppTheme.red, fontWeight: FontWeight.w600),
-                      ),
-                    ),
-                  ],
-                ),
+      content: SingleChildScrollView(
+        child: SizedBox(
+          width: 320,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                widget.subtitle,
+                style: const TextStyle(fontSize: 13, color: AppTheme.navyLight, height: 1.4),
               ),
-            ],
-            if (_isLoading) ...[
               const SizedBox(height: 20),
-              const Center(
-                child: SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.indigo),
-                ),
+              // 6-digit PIN input indicators
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: List.generate(6, (index) {
+                  final isFilled = _controllers[index].text.isNotEmpty;
+                  final hasFocus = _focusNodes[index].hasFocus;
+
+                  return Container(
+                    width: 44,
+                    height: 52,
+                    decoration: BoxDecoration(
+                      color: isFilled
+                          ? AppTheme.primaryLight.withValues(alpha: 0.12)
+                          : (hasFocus ? AppTheme.white : AppTheme.grayBackground),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: isFilled || hasFocus ? AppTheme.primary : AppTheme.grayBorder,
+                        width: isFilled || hasFocus ? 2 : 1.2,
+                      ),
+                    ),
+                    child: Center(
+                      child: TextField(
+                        controller: _controllers[index],
+                        focusNode: _focusNodes[index],
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: false,
+                          signed: false,
+                        ),
+                        textAlign: TextAlign.center,
+                        maxLength: 1,
+                        obscureText: true,
+                        obscuringCharacter: '●',
+                        style: const TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w900,
+                          color: AppTheme.primary,
+                        ),
+                        decoration: const InputDecoration(
+                          counterText: '',
+                          contentPadding: EdgeInsets.zero,
+                          border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
+                          hintText: '–',
+                          hintStyle: TextStyle(
+                            fontSize: 16,
+                            color: AppTheme.mutedText,
+                            fontWeight: FontWeight.w400,
+                          ),
+                        ),
+                        onChanged: (value) => _onDigitChanged(index, value),
+                      ),
+                    ),
+                  );
+                }),
               ),
+              if (_errorMessage.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppTheme.redLight,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: AppTheme.red.withValues(alpha: 0.3)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.error_outline, color: AppTheme.red, size: 16),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _errorMessage,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AppTheme.red,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              if (_isLoading) ...[
+                const SizedBox(height: 20),
+                const Center(
+                  child: SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.primary),
+                  ),
+                ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
       actions: [
@@ -256,9 +287,10 @@ class _ParentalPinModalState extends State<ParentalPinModal> {
         ElevatedButton(
           onPressed: _isLoading ? null : _submitPin,
           style: ElevatedButton.styleFrom(
-            backgroundColor: AppTheme.indigo,
+            backgroundColor: AppTheme.primary,
             foregroundColor: AppTheme.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            minimumSize: const Size(90, 44),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
           ),
           child: const Text('Verify'),
         ),

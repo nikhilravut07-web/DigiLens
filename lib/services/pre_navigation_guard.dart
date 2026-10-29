@@ -4,6 +4,7 @@ import 'package:digilens/models/scan_result.dart';
 import 'package:digilens/theme/app_theme.dart';
 import 'package:digilens/components/status_chip.dart';
 import 'package:digilens/services/url_analysis_service.dart';
+import 'package:digilens/services/scan_history_service.dart';
 import 'package:digilens/services/parental_control_service.dart';
 import 'package:digilens/components/parental_pin_modal.dart';
 import 'package:digilens/screens/safe_browser_screen.dart';
@@ -92,29 +93,52 @@ class PreNavigationGuard {
     browserChannel.setMethodCallHandler((call) async {
       if (call.method == 'onIncomingUrl') {
         final args = call.arguments;
-        final url = (args is Map) ? args['url'] as String? : null;
+        String? url;
+        String? source;
+        if (args is Map) {
+          url = args['url'] as String?;
+          source = args['source'] as String?;
+        } else if (args is String) {
+          url = args;
+        }
         if (url != null && url.isNotEmpty && _claimUrl(url)) {
           WidgetsBinding.instance.addPostFrameCallback((_) async {
             final navState = navigatorKey.currentState;
             if (navState != null && navState.mounted) {
-              await navigateWithProtection(navState.context, targetUrl: url);
+              await navigateWithProtection(
+                navState.context,
+                targetUrl: url!,
+                source: source,
+              );
             }
-            _releaseUrl(url);
+            _releaseUrl(url!);
           });
         }
       }
     });
 
     browserChannel
-        .invokeMethod<String>('getInitialIntent')
-        .then((url) {
+        .invokeMethod<dynamic>('getInitialIntent')
+        .then((data) {
+          String? url;
+          String? source;
+          if (data is Map) {
+            url = data['url'] as String?;
+            source = data['source'] as String?;
+          } else if (data is String) {
+            url = data;
+          }
           if (url != null && url.isNotEmpty && _claimUrl(url)) {
             WidgetsBinding.instance.addPostFrameCallback((_) async {
               final navState = navigatorKey.currentState;
               if (navState != null && navState.mounted) {
-                await navigateWithProtection(navState.context, targetUrl: url);
+                await navigateWithProtection(
+                  navState.context,
+                  targetUrl: url!,
+                  source: source,
+                );
               }
-              _releaseUrl(url);
+              _releaseUrl(url!);
             });
           }
         })
@@ -131,6 +155,7 @@ class PreNavigationGuard {
     BuildContext context, {
     required String targetUrl,
     ScanResult? existingResult,
+    String? source,
   }) async {
     // 1. Analyze URL first to determine risk level and scheme validity
     ScanResult analysisResult;
@@ -140,6 +165,13 @@ class PreNavigationGuard {
       analysisResult = await UrlAnalysisService.analyzeUrl(targetUrl);
     }
 
+    // Record every evaluated link to persistent scan history
+    ScanHistoryService.instance.recordScan(
+      rawInput: targetUrl,
+      result: analysisResult,
+      source: source,
+    );
+
     if (!context.mounted) return;
 
     // 2. Check for dangerous or unsupported schemes
@@ -148,13 +180,17 @@ class PreNavigationGuard {
       analysisResult: analysisResult,
     );
 
+    final bool isParentalActive = ParentalControlService.instance.isEnabled;
+
     if (decision == NavigationDecision.blocked) {
-      await ParentalControlService.instance.recordActivity(
-        eventType: 'website_access',
-        details: 'Blocked dangerous or unsupported URI scheme',
-        status: 'blocked',
-        targetUrl: targetUrl,
-      );
+      if (isParentalActive) {
+        await ParentalControlService.instance.recordActivity(
+          eventType: 'website_access',
+          details: 'Blocked dangerous or unsupported URI scheme',
+          status: 'blocked',
+          targetUrl: targetUrl,
+        );
+      }
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Blocked: dangerous URI scheme.')),
@@ -162,8 +198,6 @@ class PreNavigationGuard {
       }
       return;
     }
-
-    final bool isParentalActive = ParentalControlService.instance.isEnabled;
 
     // 3. Critical-risk Protection under Parental Web Guard
     // Block by default and show security warning; PIN approval alone does not bypass critical threat.
@@ -232,29 +266,33 @@ class PreNavigationGuard {
       );
 
       if (proceed != true) {
-        await ParentalControlService.instance.recordActivity(
-          eventType: 'website_access',
-          details: 'User cancelled after risk warning (${analysisResult.riskLevel.name} risk)',
-          status: 'cancelled',
-          targetUrl: targetUrl,
-        );
+        if (isParentalActive) {
+          await ParentalControlService.instance.recordActivity(
+            eventType: 'website_access',
+            details: 'User cancelled after risk warning (${analysisResult.riskLevel.name} risk)',
+            status: 'cancelled',
+            targetUrl: targetUrl,
+          );
+        }
         return;
       }
     }
 
     if (!context.mounted) return;
 
-    // 6. Record successful navigation access (single clean record)
-    final String openDetails = isParentalActive && isMediumOrHighRisk
-        ? 'Opened ${analysisResult.riskLevel.name}-risk website with parental PIN approval'
-        : 'Opened ${analysisResult.riskLevel.name} website';
+    // 6. Record successful navigation access (single clean record when parental guard is active)
+    if (isParentalActive) {
+      final String openDetails = isMediumOrHighRisk
+          ? 'Opened ${analysisResult.riskLevel.name}-risk website with parental PIN approval'
+          : 'Opened ${analysisResult.riskLevel.name} website';
 
-    await ParentalControlService.instance.recordActivity(
-      eventType: 'website_access',
-      details: openDetails,
-      status: 'approved',
-      targetUrl: targetUrl,
-    );
+      await ParentalControlService.instance.recordActivity(
+        eventType: 'website_access',
+        details: openDetails,
+        status: 'approved',
+        targetUrl: targetUrl,
+      );
+    }
 
     // 7. Launch Native Android Protected Browser via MethodChannel
     try {
@@ -324,7 +362,7 @@ class _PreNavigationWarningSheet extends StatelessWidget {
     return Container(
       decoration: const BoxDecoration(
         color: AppTheme.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       padding: EdgeInsets.fromLTRB(
         24,
@@ -354,7 +392,7 @@ class _PreNavigationWarningSheet extends StatelessWidget {
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: bannerBg,
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(14),
               border: Border.all(
                 color: bannerColor.withValues(alpha: 0.4),
                 width: 1.5,
@@ -371,7 +409,7 @@ class _PreNavigationWarningSheet extends StatelessWidget {
                   child: Icon(
                     isDanger ? Icons.gpp_bad : Icons.warning_amber_rounded,
                     color: bannerColor,
-                    size: 28,
+                    size: 26,
                   ),
                 ),
                 const SizedBox(width: 14),
@@ -416,8 +454,8 @@ class _PreNavigationWarningSheet extends StatelessWidget {
             'Target Destination:',
             style: TextStyle(
               fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: AppTheme.mutedText,
+              fontWeight: FontWeight.w700,
+              color: AppTheme.navyText,
             ),
           ),
           const SizedBox(height: 6),
@@ -425,7 +463,7 @@ class _PreNavigationWarningSheet extends StatelessWidget {
             width: double.infinity,
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: AppTheme.lavenderBackground,
+              color: AppTheme.grayBackground,
               borderRadius: BorderRadius.circular(10),
               border: Border.all(color: AppTheme.grayBorder),
             ),
@@ -489,16 +527,16 @@ class _PreNavigationWarningSheet extends StatelessWidget {
             child: ElevatedButton.icon(
               onPressed: () => Navigator.pop(context, false),
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.indigo,
+                backgroundColor: AppTheme.primary,
                 foregroundColor: AppTheme.white,
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(10),
                 ),
               ),
               icon: const Icon(Icons.arrow_back, size: 18),
               label: const Text(
                 'Cancel & Return to Safety (Recommended)',
-                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
               ),
             ),
           ),
@@ -514,12 +552,12 @@ class _PreNavigationWarningSheet extends StatelessWidget {
                 foregroundColor: AppTheme.red,
                 side: const BorderSide(color: AppTheme.red, width: 1.2),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(10),
                 ),
               ),
               child: const Text(
                 'I Understand the Risks — Open Safely in Sandboxed Viewer',
-                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
               ),
             ),
           ),

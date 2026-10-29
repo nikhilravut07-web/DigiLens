@@ -13,6 +13,7 @@ import 'package:digilens/models/scan_result.dart';
 /// from [_checkThreatIntelligence] — never embed API keys in client code.
 class UrlAnalysisService {
   static final math.Random _random = math.Random();
+  static String? backendBaseUrl;
 
   static String _generateId() {
     const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';

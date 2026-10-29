@@ -1,38 +1,50 @@
 import 'package:flutter/material.dart';
 
 class AppTheme {
-  // New color palette - Light lavender, white, indigo/purple accent
-  static const Color lavenderBackground = Color(0xFFF5F3FF);
-  static const Color lavenderLight = Color(0xFFEDE9FE);
-  static const Color white = Color(0xFFFFFFFF);
-  static const Color indigo = Color(0xFF6366F1);
-  static const Color indigoDark = Color(0xFF4F46E5);
+  // Primary Cybersecurity Theme Colors
+  static const Color primary = Color(0xFF4F46E5); // Indigo primary
+  static const Color primaryDark = Color(0xFF3730A3);
+  static const Color primaryLight = Color(0xFF818CF8);
+  static const Color indigo = Color(0xFF4F46E5);
+  static const Color indigoDark = Color(0xFF3730A3);
   static const Color indigoLight = Color(0xFF818CF8);
-  static const Color navyText = Color(0xFF1E293B);
-  static const Color navyLight = Color(0xFF475569);
-  static const Color mutedText = Color(0xFF64748B);
-  static const Color teal = Color(0xFF14B8A6);
-  static const Color tealLight = Color(0xFF5EEAD4);
-  static const Color green = Color(0xFF22C55E);
-  static const Color greenLight = Color(0xFFDCFCE7);
-  static const Color amber = Color(0xFFF59E0B);
-  static const Color amberLight = Color(0xFFFEF3C7);
-  static const Color red = Color(0xFFEF4444);
-  static const Color redLight = Color(0xFFFEE2E2);
-  static const Color coral = Color(0xFFF87171);
-  static const Color coralLight = Color(0xFFFECACA);
-  static const Color grayBorder = Color(0xFFE2E8F0);
-  static const Color grayBackground = Color(0xFFF8FAFC);
 
-  // Dark theme colors (keeping some for dark mode support)
-  static const Color navy = Color(0xFF0A1628);
-  static const Color navyDark = Color(0xFF050F1E);
-  static const Color navyCard = Color(0xFF132238);
+  // Background and Surface
+  static const Color lavenderBackground = Color(0xFFF8FAFC); // Clean neutral slate-50
+  static const Color lavenderLight = Color(0xFFEEF2F6);
+  static const Color white = Color(0xFFFFFFFF);
+  static const Color grayBackground = Color(0xFFF1F5F9);
+  static const Color grayBorder = Color(0xFFCBD5E1);
+
+  // Text Colors
+  static const Color navyText = Color(0xFF0F172A); // Slate-900
+  static const Color navyLight = Color(0xFF334155); // Slate-700
+  static const Color mutedText = Color(0xFF64748B); // Slate-500
+
+  // Status Colors
+  static const Color teal = Color(0xFF0D9488);
+  static const Color tealLight = Color(0xFFCCFBF1);
+  static const Color green = Color(0xFF16A34A); // Success
+  static const Color greenLight = Color(0xFFDCFCE7);
+  static const Color amber = Color(0xFFD97706); // Warning
+  static const Color amberLight = Color(0xFFFEF3C7);
+  static const Color red = Color(0xFFDC2626); // Danger
+  static const Color redLight = Color(0xFFFEE2E2);
+  static const Color coral = Color(0xFFE11D48);
+  static const Color coralLight = Color(0xFFFFE4E6);
+
+  // Dark theme colors
+  static const Color navy = Color(0xFF0F172A);
+  static const Color navyDark = Color(0xFF020617);
+  static const Color navyCard = Color(0xFF1E293B);
+
+  static const String appFontFamily = 'Times New Roman';
+  static const List<String> fontFallbacks = ['Times New Roman', 'Times', 'serif'];
 
   static const ColorScheme _lightColorScheme = ColorScheme.light(
-    primary: indigo,
+    primary: primary,
     onPrimary: white,
-    primaryContainer: indigoLight,
+    primaryContainer: primaryLight,
     onPrimaryContainer: navyText,
     secondary: teal,
     onSecondary: white,
@@ -46,12 +58,12 @@ class AppTheme {
   );
 
   static const ColorScheme _darkColorScheme = ColorScheme.dark(
-    primary: indigoLight,
-    onPrimary: navyText,
-    primaryContainer: indigoDark,
+    primary: primaryLight,
+    onPrimary: navyDark,
+    primaryContainer: primaryDark,
     onPrimaryContainer: white,
-    secondary: tealLight,
-    onSecondary: navyText,
+    secondary: teal,
+    onSecondary: navyDark,
     surface: navyCard,
     onSurface: white,
     surfaceContainerHighest: navy,
@@ -63,159 +75,194 @@ class AppTheme {
 
   static ThemeData get lightTheme {
     return ThemeData(
-      colorScheme: _lightColorScheme,
       useMaterial3: true,
+      fontFamily: appFontFamily,
+      fontFamilyFallback: fontFallbacks,
+      colorScheme: _lightColorScheme,
       scaffoldBackgroundColor: lavenderBackground,
       appBarTheme: const AppBarTheme(
-        backgroundColor: Colors.transparent,
+        backgroundColor: white,
         elevation: 0,
+        scrolledUnderElevation: 1,
         centerTitle: false,
         titleTextStyle: TextStyle(
+          fontFamily: appFontFamily,
           fontSize: 18,
-          fontWeight: FontWeight.w600,
+          fontWeight: FontWeight.w700,
           color: navyText,
         ),
-        iconTheme: IconThemeData(color: navyText),
+        iconTheme: IconThemeData(color: navyText, size: 24),
       ),
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: white,
-        indicatorColor: indigoLight.withValues(alpha: 0.3),
+        elevation: 2,
+        indicatorColor: primaryLight.withValues(alpha: 0.25),
         labelTextStyle: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.selected)) {
-            return const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: indigo,
-            );
-          }
-          return const TextStyle(
+          final isSelected = states.contains(WidgetState.selected);
+          return TextStyle(
+            fontFamily: appFontFamily,
             fontSize: 12,
-            fontWeight: FontWeight.w500,
-            color: mutedText,
+            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+            color: isSelected ? primary : mutedText,
           );
         }),
         iconTheme: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.selected)) {
-            return const IconThemeData(color: indigo, size: 24);
-          }
-          return const IconThemeData(color: mutedText, size: 24);
+          final isSelected = states.contains(WidgetState.selected);
+          return IconThemeData(
+            color: isSelected ? primary : mutedText,
+            size: 24,
+          );
         }),
       ),
       cardTheme: CardThemeData(
         color: white,
         elevation: 0,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(12),
           side: const BorderSide(color: grayBorder, width: 1),
         ),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: indigo,
+          backgroundColor: primary,
           foregroundColor: white,
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+          minimumSize: const Size(double.infinity, 48),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(10),
           ),
-          textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+          textStyle: const TextStyle(
+            fontFamily: appFontFamily,
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+          ),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          foregroundColor: indigo,
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+          foregroundColor: primary,
+          minimumSize: const Size(double.infinity, 48),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(10),
           ),
-          side: const BorderSide(color: indigo, width: 1.5),
-          textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+          side: const BorderSide(color: primary, width: 1.5),
+          textStyle: const TextStyle(
+            fontFamily: appFontFamily,
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+          ),
         ),
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
-          foregroundColor: indigo,
-          textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+          foregroundColor: primary,
+          textStyle: const TextStyle(
+            fontFamily: appFontFamily,
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+          ),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: white,
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(10),
           borderSide: const BorderSide(color: grayBorder, width: 1),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(10),
           borderSide: const BorderSide(color: grayBorder, width: 1),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: indigo, width: 2),
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: primary, width: 2),
         ),
-        hintStyle: const TextStyle(color: mutedText),
+        hintStyle: const TextStyle(
+          fontFamily: appFontFamily,
+          color: mutedText,
+        ),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 16,
-          vertical: 16,
+          vertical: 14,
         ),
       ),
       chipTheme: ChipThemeData(
         backgroundColor: grayBackground,
-        selectedColor: indigoLight.withValues(alpha: 0.3),
-        labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+        labelStyle: const TextStyle(
+          fontFamily: appFontFamily,
+          fontSize: 13,
+          fontWeight: FontWeight.w500,
+        ),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
       textTheme: const TextTheme(
         headlineLarge: TextStyle(
-          fontSize: 28,
+          fontFamily: appFontFamily,
+          fontSize: 26,
           fontWeight: FontWeight.w700,
           color: navyText,
         ),
         headlineMedium: TextStyle(
-          fontSize: 24,
-          fontWeight: FontWeight.w600,
+          fontFamily: appFontFamily,
+          fontSize: 22,
+          fontWeight: FontWeight.w700,
           color: navyText,
         ),
         headlineSmall: TextStyle(
-          fontSize: 20,
-          fontWeight: FontWeight.w600,
+          fontFamily: appFontFamily,
+          fontSize: 18,
+          fontWeight: FontWeight.w700,
           color: navyText,
         ),
         titleLarge: TextStyle(
-          fontSize: 18,
-          fontWeight: FontWeight.w600,
+          fontFamily: appFontFamily,
+          fontSize: 16,
+          fontWeight: FontWeight.w700,
           color: navyText,
         ),
         titleMedium: TextStyle(
-          fontSize: 16,
+          fontFamily: appFontFamily,
+          fontSize: 15,
           fontWeight: FontWeight.w600,
           color: navyText,
         ),
         titleSmall: TextStyle(
+          fontFamily: appFontFamily,
           fontSize: 14,
           fontWeight: FontWeight.w600,
           color: navyText,
         ),
         bodyLarge: TextStyle(
+          fontFamily: appFontFamily,
           fontSize: 15,
           fontWeight: FontWeight.w400,
           color: navyLight,
+          height: 1.4,
         ),
         bodyMedium: TextStyle(
+          fontFamily: appFontFamily,
           fontSize: 14,
           fontWeight: FontWeight.w400,
           color: navyLight,
+          height: 1.4,
         ),
         bodySmall: TextStyle(
+          fontFamily: appFontFamily,
           fontSize: 12,
           fontWeight: FontWeight.w400,
           color: mutedText,
+          height: 1.3,
         ),
         labelLarge: TextStyle(
+          fontFamily: appFontFamily,
           fontSize: 14,
-          fontWeight: FontWeight.w600,
+          fontWeight: FontWeight.w700,
           color: navyText,
         ),
         labelMedium: TextStyle(
+          fontFamily: appFontFamily,
           fontSize: 12,
           fontWeight: FontWeight.w500,
           color: mutedText,
@@ -226,163 +273,160 @@ class AppTheme {
 
   static ThemeData get darkTheme {
     return ThemeData(
-      colorScheme: _darkColorScheme,
       useMaterial3: true,
+      fontFamily: appFontFamily,
+      fontFamilyFallback: fontFallbacks,
+      colorScheme: _darkColorScheme,
       scaffoldBackgroundColor: navy,
       appBarTheme: const AppBarTheme(
-        backgroundColor: Colors.transparent,
+        backgroundColor: navyCard,
         elevation: 0,
         centerTitle: false,
         titleTextStyle: TextStyle(
+          fontFamily: appFontFamily,
           fontSize: 18,
-          fontWeight: FontWeight.w600,
+          fontWeight: FontWeight.w700,
           color: white,
         ),
-        iconTheme: IconThemeData(color: white),
+        iconTheme: IconThemeData(color: white, size: 24),
       ),
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: navyCard,
-        indicatorColor: indigoDark.withValues(alpha: 0.5),
+        elevation: 2,
+        indicatorColor: primaryDark,
         labelTextStyle: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.selected)) {
-            return const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: indigoLight,
-            );
-          }
-          return const TextStyle(
+          final isSelected = states.contains(WidgetState.selected);
+          return TextStyle(
+            fontFamily: appFontFamily,
             fontSize: 12,
-            fontWeight: FontWeight.w500,
-            color: Color(0xFF94A3B8),
+            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+            color: isSelected ? primaryLight : const Color(0xFF94A3B8),
           );
         }),
         iconTheme: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.selected)) {
-            return const IconThemeData(color: indigoLight, size: 24);
-          }
-          return const IconThemeData(color: Color(0xFF94A3B8), size: 24);
+          final isSelected = states.contains(WidgetState.selected);
+          return IconThemeData(
+            color: isSelected ? primaryLight : const Color(0xFF94A3B8),
+            size: 24,
+          );
         }),
       ),
       cardTheme: CardThemeData(
         color: navyCard,
         elevation: 0,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: const BorderSide(color: Color(0xFF1E3A5F), width: 1),
+          borderRadius: BorderRadius.circular(12),
+          side: const BorderSide(color: Color(0xFF334155), width: 1),
         ),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: indigoLight,
-          foregroundColor: navyText,
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+          backgroundColor: primaryLight,
+          foregroundColor: navyDark,
+          minimumSize: const Size(double.infinity, 48),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(10),
           ),
-          textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+          textStyle: const TextStyle(
+            fontFamily: appFontFamily,
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+          ),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          foregroundColor: indigoLight,
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+          foregroundColor: primaryLight,
+          minimumSize: const Size(double.infinity, 48),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(10),
           ),
-          side: const BorderSide(color: indigoLight, width: 1.5),
-          textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+          side: const BorderSide(color: primaryLight, width: 1.5),
+          textStyle: const TextStyle(
+            fontFamily: appFontFamily,
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+          ),
         ),
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
-          foregroundColor: indigoLight,
-          textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+          foregroundColor: primaryLight,
+          textStyle: const TextStyle(
+            fontFamily: appFontFamily,
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+          ),
         ),
-      ),
-      inputDecorationTheme: InputDecorationTheme(
-        filled: true,
-        fillColor: navy,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFF1E3A5F), width: 1),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFF1E3A5F), width: 1),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: indigoLight, width: 2),
-        ),
-        hintStyle: const TextStyle(color: Color(0xFF94A3B8)),
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 16,
-        ),
-      ),
-      chipTheme: ChipThemeData(
-        backgroundColor: navyCard,
-        selectedColor: indigoDark.withValues(alpha: 0.5),
-        labelStyle: const TextStyle(
-          fontSize: 13,
-          fontWeight: FontWeight.w500,
-          color: white,
-        ),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
       textTheme: const TextTheme(
         headlineLarge: TextStyle(
-          fontSize: 28,
+          fontFamily: appFontFamily,
+          fontSize: 26,
           fontWeight: FontWeight.w700,
           color: white,
         ),
         headlineMedium: TextStyle(
-          fontSize: 24,
-          fontWeight: FontWeight.w600,
+          fontFamily: appFontFamily,
+          fontSize: 22,
+          fontWeight: FontWeight.w700,
           color: white,
         ),
         headlineSmall: TextStyle(
-          fontSize: 20,
-          fontWeight: FontWeight.w600,
+          fontFamily: appFontFamily,
+          fontSize: 18,
+          fontWeight: FontWeight.w700,
           color: white,
         ),
         titleLarge: TextStyle(
-          fontSize: 18,
-          fontWeight: FontWeight.w600,
+          fontFamily: appFontFamily,
+          fontSize: 16,
+          fontWeight: FontWeight.w700,
           color: white,
         ),
         titleMedium: TextStyle(
-          fontSize: 16,
+          fontFamily: appFontFamily,
+          fontSize: 15,
           fontWeight: FontWeight.w600,
           color: white,
         ),
         titleSmall: TextStyle(
+          fontFamily: appFontFamily,
           fontSize: 14,
           fontWeight: FontWeight.w600,
           color: white,
         ),
         bodyLarge: TextStyle(
+          fontFamily: appFontFamily,
           fontSize: 15,
           fontWeight: FontWeight.w400,
           color: Color(0xFFE2E8F0),
+          height: 1.4,
         ),
         bodyMedium: TextStyle(
+          fontFamily: appFontFamily,
           fontSize: 14,
           fontWeight: FontWeight.w400,
           color: Color(0xFFE2E8F0),
+          height: 1.4,
         ),
         bodySmall: TextStyle(
+          fontFamily: appFontFamily,
           fontSize: 12,
           fontWeight: FontWeight.w400,
           color: Color(0xFF94A3B8),
+          height: 1.3,
         ),
         labelLarge: TextStyle(
+          fontFamily: appFontFamily,
           fontSize: 14,
-          fontWeight: FontWeight.w600,
+          fontWeight: FontWeight.w700,
           color: white,
         ),
         labelMedium: TextStyle(
+          fontFamily: appFontFamily,
           fontSize: 12,
           fontWeight: FontWeight.w500,
           color: Color(0xFF94A3B8),

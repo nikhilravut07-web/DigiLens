@@ -1,6 +1,7 @@
 package com.example.digilens
 
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -12,6 +13,7 @@ class MainActivity : FlutterActivity() {
     private var methodChannel: MethodChannel? = null
     private var smsMethodChannel: MethodChannel? = null
     private var pendingIntentUrl: String? = null
+    private var pendingIntentSource: String? = null
     private var pendingSmsPayload: Map<String, String>? = null
 
     // Track the last intent identity to avoid re-processing the same intent
@@ -45,6 +47,56 @@ class MainActivity : FlutterActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         handleIntent(intent)
+    }
+
+    private fun resolveSourceApp(intent: Intent?): String {
+        var rawReferrer: String? = null
+        try {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP_MR1) {
+                val refUri = referrer
+                if (refUri != null) {
+                    rawReferrer = refUri.toString()
+                }
+            }
+        } catch (_: Exception) {}
+
+        if (rawReferrer.isNullOrEmpty() && intent != null) {
+            val extraRef = intent.getParcelableExtra<Uri>(Intent.EXTRA_REFERRER)
+            if (extraRef != null) {
+                rawReferrer = extraRef.toString()
+            } else {
+                rawReferrer = intent.getStringExtra(Intent.EXTRA_REFERRER_NAME)
+            }
+        }
+
+        if (rawReferrer.isNullOrEmpty() && callingPackage != null) {
+            rawReferrer = "android-app://$callingPackage"
+        }
+
+        if (rawReferrer != null) {
+            val lower = rawReferrer.lowercase()
+            return when {
+                lower.contains("whatsapp") -> "WhatsApp"
+                lower.contains("messaging") || lower.contains("mms") || lower.contains("sms") -> "SMS"
+                lower.contains("telegram") -> "Telegram"
+                lower.contains("chrome") || lower.contains("firefox") || lower.contains("browser") -> "Browser"
+                lower.startsWith("android-app://") -> {
+                    val pkg = lower.removePrefix("android-app://")
+                    val seg = pkg.split('.').lastOrNull()
+                    if (!seg.isNullOrBlank()) {
+                        seg.replaceFirstChar { it.uppercase() }
+                    } else "External App"
+                }
+                else -> "External App"
+            }
+        }
+        return "External App"
+    }
+
+    private fun extractUrlFromText(text: String?): String? {
+        if (text.isNullOrBlank()) return null
+        val urlRegex = Regex("""https?://[^\s<>"]+""", RegexOption.IGNORE_CASE)
+        return urlRegex.find(text)?.value
     }
 
     private fun handleIntent(intent: Intent?) {
@@ -88,10 +140,30 @@ class MainActivity : FlutterActivity() {
             if (scheme != "http" && scheme != "https") return
 
             val url = data.toString()
+            val sourceApp = resolveSourceApp(intent)
+            val payload = mapOf("url" to url, "source" to sourceApp)
             if (methodChannel != null) {
-                methodChannel?.invokeMethod("onIncomingUrl", mapOf("url" to url))
+                methodChannel?.invokeMethod("onIncomingUrl", payload)
             } else {
                 pendingIntentUrl = url
+                pendingIntentSource = sourceApp
+            }
+        } else if (Intent.ACTION_SEND == action && intent.type?.startsWith("text/") == true) {
+            val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT) ?: ""
+            val extractedUrl = extractUrlFromText(sharedText)
+            if (extractedUrl != null) {
+                val intentIdentity = (extractedUrl + intent.getLongExtra("_ts", 0L)).hashCode().toLong()
+                if (intentIdentity == lastProcessedIntentId) return
+                lastProcessedIntentId = intentIdentity
+
+                val sourceApp = resolveSourceApp(intent)
+                val payload = mapOf("url" to extractedUrl, "source" to sourceApp)
+                if (methodChannel != null) {
+                    methodChannel?.invokeMethod("onIncomingUrl", payload)
+                } else {
+                    pendingIntentUrl = extractedUrl
+                    pendingIntentSource = sourceApp
+                }
             }
         }
     }
@@ -121,8 +193,14 @@ class MainActivity : FlutterActivity() {
                 }
                 "getInitialIntent" -> {
                     val url = pendingIntentUrl
+                    val source = pendingIntentSource
                     pendingIntentUrl = null
-                    result.success(url)
+                    pendingIntentSource = null
+                    if (url != null) {
+                        result.success(mapOf("url" to url, "source" to (source ?: "External App")))
+                    } else {
+                        result.success(null)
+                    }
                 }
                 else -> result.notImplemented()
             }
@@ -130,8 +208,10 @@ class MainActivity : FlutterActivity() {
 
         // If there was a pending URL from cold start, notify Flutter once channel is ready
         pendingIntentUrl?.let { url ->
-            channel.invokeMethod("onIncomingUrl", mapOf("url" to url))
+            val source = pendingIntentSource ?: "External App"
+            channel.invokeMethod("onIncomingUrl", mapOf("url" to url, "source" to source))
             pendingIntentUrl = null
+            pendingIntentSource = null
         }
 
         // Setup SMS Guard Method Channel

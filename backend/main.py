@@ -5,8 +5,11 @@ from typing import List, Optional
 from fastapi import FastAPI, HTTPException, status, Header
 from pydantic import BaseModel, Field
 import google.generativeai as genai
-from detector import local_heuristic_fallback, local_sms_heuristic_fallback
+from detector import local_heuristic_fallback, local_sms_heuristic_fallback, analyze_url_heuristics
+from threat_intel import ThreatIntelligenceService
+from benchmark import BenchmarkEvaluator
 from dotenv import load_dotenv
+
 if os.path.exists(".env"):
     load_dotenv()
 
@@ -18,10 +21,13 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("digilens-backend")
 
 app = FastAPI(
-    title="DigiLens AI Voice Scam Detection Backend",
-    version="1.0.0",
-    description="Backend mediating Google Gemini AI for contextual vishing and scam analysis."
+    title="DigiLens AI Scam Detection & Threat Intelligence Backend",
+    version="2.0.0",
+    description="Backend mediating Google Gemini AI, PhishTank, URLhaus, and benchmark evaluation."
 )
+
+threat_intel_service = ThreatIntelligenceService()
+benchmark_evaluator = BenchmarkEvaluator()
 
 class TranscriptRequest(BaseModel):
     transcript: str = Field(..., min_length=1, max_length=10000, description="Call conversation transcript")
@@ -32,6 +38,9 @@ class SmsAnalysisRequest(BaseModel):
     sender: Optional[str] = Field(None, description="SMS sender phone number or alphanumeric header")
     body: str = Field(..., min_length=1, max_length=5000, description="SMS text content")
     language: Optional[str] = Field("en-IN", description="Language locale")
+
+class UrlCheckRequest(BaseModel):
+    url: str = Field(..., min_length=1, max_length=2000, description="URL to check against threat intelligence")
 
 class WarningIndicatorModel(BaseModel):
     title: str
@@ -47,75 +56,15 @@ class ScamAnalysisResponse(BaseModel):
     recommended_action: str = Field(...)
     analysis_method: str = Field("ai_gemini")
 
-def local_heuristic_fallback(transcript: str) -> dict:
-    lower = transcript.lower()
-    score = 0
-    warnings = []
-    scam_type = "unknown"
-
-    if any(k in lower for k in ["digital arrest", "arrest warrant", "customs parcel", "cbi officer", "narcotics"]):
-        score += 55
-        scam_type = "digital_arrest"
-        warnings.append({
-            "title": "Digital Arrest / Law Enforcement Impersonation",
-            "description": "Claims of digital arrest or customs parcel seizure by police/CBI.",
-            "icon": "gavel"
-        })
-
-    if any(k in lower for k in ["anydesk", "teamviewer", "rustdesk", "screen share", "apk file"]):
-        score += 45
-        scam_type = "remote_access"
-        warnings.append({
-            "title": "Remote Screen Sharing Request",
-            "description": "Requests to install remote-desktop applications for device control.",
-            "icon": "screen_share"
-        })
-
-    if any(k in lower for k in ["otp", "cvv", "pin", "card number", "password"]):
-        score += 40
-        scam_type = "otp_theft"
-        warnings.append({
-            "title": "Credential & OTP Theft",
-            "description": "Requests to disclose sensitive banking credentials over call.",
-            "icon": "credit_card"
-        })
-
-    if any(k in lower for k in ["transfer money", "security deposit", "refundable amount", "1 lakh", "50,050"]):
-        score += 45
-        if scam_type == "unknown":
-            scam_type = "money_demand"
-        warnings.append({
-            "title": "Suspicious Money Transfer Demand",
-            "description": "Demands for immediate funds transfer or security deposits.",
-            "icon": "payments"
-        })
-
-    if score >= 70:
-        risk_level = "critical"
-    elif score >= 45:
-        risk_level = "high"
-    elif score >= 25:
-        risk_level = "medium"
-    elif score >= 10:
-        risk_level = "low"
-    else:
-        risk_level = "safe"
-
-    action = "Disconnect call immediately. Dial National Cyber Helpline 1930." if score >= 45 else "Exercise caution. Verify via official helplines."
-
-    return {
-        "risk_level": risk_level,
-        "risk_score": score,
-        "scam_type": scam_type,
-        "evidence": warnings,
-        "transcript_uncertain": len(transcript.split()) < 5,
-        "recommended_action": action,
-        "analysis_method": "local_fallback"
-    }
-
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "service": "digilens-backend", "gemini_configured": bool(api_key)}
+    return {
+        "status": "healthy",
+        "service": "digilens-backend",
+        "gemini_configured": bool(api_key),
+        "phishtank_configured": bool(os.getenv("PHISHTANK_API_KEY")),
+        "urlhaus_configured": bool(os.getenv("URLHAUS_API_KEY"))
+    }
 
 @app.post("/api/v1/analyze-voice", response_model=ScamAnalysisResponse)
 def analyze_voice(payload: TranscriptRequest):
@@ -260,6 +209,26 @@ Rules for Analysis:
     except Exception as e:
         logger.error(f"Failed to parse Gemini SMS JSON: {e}. Raw: {response_text}")
         return local_sms_heuristic_fallback(payload.body, payload.sender or "")
+
+@app.post("/api/v1/threat-intel/check")
+async def check_threat_intel(payload: UrlCheckRequest):
+    """
+    Query PhishTank and URLhaus for verified threat intelligence on a URL.
+    """
+    result = await threat_intel_service.check_url(payload.url)
+    return result
+
+@app.get("/api/v1/benchmark/results")
+def get_benchmark_results(threshold: Optional[str] = "medium"):
+    """
+    Run evaluation benchmark against verified samples in the evaluation dataset using
+    the actual DigiLens URL heuristic detector, comparing against independent labels.
+    """
+    eval_report = benchmark_evaluator.evaluate_detector(
+        analyze_url_heuristics,
+        risk_threshold=threshold or "medium"
+    )
+    return eval_report
 
 if __name__ == "__main__":
     import uvicorn
